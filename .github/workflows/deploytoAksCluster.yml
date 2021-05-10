@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: productioncg.azurecr.io
+        username: ${{ secrets.acr_productioncg_username }}
+        password: ${{ secrets.acr_productioncg_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/Applications" -f  "Applications/Dockerfile" -t productioncg.azurecr.io/myprodcluster:${{ github.sha }} --label dockerfile-path=Applications/Dockerfile
+        docker push productioncg.azurecr.io/myprodcluster:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_myprodcluster_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep myprodclusterab80 | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace myprodclusterab80`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: myprodclusterab80
+        container-registry-url: productioncg.azurecr.io
+        container-registry-username: ${{ secrets.acr_productioncg_username }}
+        container-registry-password: ${{ secrets.acr_productioncg_password }}
+        secret-name: myprodclustedockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: myprodclusterab80
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+        images: |
+          productioncg.azurecr.io/myprodcluster:${{ github.sha }}
+        imagepullsecrets: |
+          myprodclustedockerauth
