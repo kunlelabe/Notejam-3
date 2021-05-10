@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "myprodcluster-ee42"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "myprodcluster-ee42"
+  template:
+    metadata:
+      labels:
+        app: "myprodcluster-ee42"
+    spec:
+      containers:
+        - name: "myprodcluster-ee42"
+          image: "productioncg.azurecr.io/myprodcluster"
+          ports:
+          - containerPort: 8000
